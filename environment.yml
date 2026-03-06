@@ -1,0 +1,23 @@
+name: kivu_co2
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.10
+  - numpy
+  - scipy
+  - pandas
+  - xarray
+  - rasterio
+  - rioxarray
+  - geopandas
+  - shapely
+  - pyproj
+  - pyyaml
+  - matplotlib
+  - jupyterlab
+  - ipykernel
+  - tqdm
+  - numba
+  - pip
+  - pip:
+      - ema-workbench

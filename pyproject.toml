@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kivu-co2-scenarios"
+version = "0.1.0"
+description = "Lake Kivu CO2 cloud dispersion + scenario discovery (PRIM) scaffold"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy",
+  "pandas",
+  "xarray",
+  "rasterio",
+  "rioxarray",
+  "geopandas",
+  "shapely",
+  "pyproj",
+  "pyyaml",
+  "matplotlib",
+  "tqdm",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
