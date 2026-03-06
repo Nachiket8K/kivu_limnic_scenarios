@@ -169,6 +169,7 @@
 
   async function loadIndex() {
     const res = await fetch(`./scenarios/index.json`);
+    if (!res.ok) throw new Error(`Failed to load index.json: ${res.status} ${res.statusText}`);
     indexData = await res.json();
 
     // Populate scenario dropdown from available scenarios
@@ -186,7 +187,9 @@
 
   async function loadScenario(newScenarioId) {
     scenarioId = newScenarioId;
-    const res = await fetch(`./scenarios/scenario_${scenarioId}/manifest.json`);
+    const url = await fetch(`./scenarios/scenario_${scenarioId}/manifest.json`);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Failed to load manifest: ${url} -> ${res.status} ${res.statusText}`);
     manifest = await res.json();
 
     // init map once
