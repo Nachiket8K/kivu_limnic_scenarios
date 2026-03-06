@@ -46,7 +46,7 @@
 
     <div class="row">
       <label>Opacity</label>
-      <input id="opacity" type="range" min="0" max="1" step="0.05" value="0.7" />
+      <input id="opacity" type="range" min="0" max="1" step="0.05" value="0.5" />
       <small id="opacityLabel">0.50</small>
     </div>
 
@@ -72,7 +72,7 @@
 
     <hr />
     <small>
-      Data served from <code>/scenarios/</code>. This is a playback UI; no physics runs in the browser.
+      Data served from <code>/scenarios/</code> folder in the Github repository. This is a playback UI that shows generated simulation runs; no physics runs in the browser.
     </small>
   </div>
 
@@ -186,36 +186,35 @@
   }
 
   async function loadScenario(newScenarioId) {
-    scenarioId = newScenarioId;
-    const url = await fetch(`./scenarios/scenario_${scenarioId}/manifest.json`);
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Failed to load manifest: ${url} -> ${res.status} ${res.statusText}`);
-    manifest = await res.json();
+  scenarioId = newScenarioId;
 
-    // init map once
-    if (!map) {
-      initMap(manifest.aoi.bbox_lonlat);
-      map.on("load", () => {
-        timeSlider.max = manifest.time.n_frames - 1;
-        timeSlider.value = 0;
-        scenarioInfo.textContent = JSON.stringify(manifest.parameters, null, 0);
-        updateUIFrame();
-      });
-    } else {
-      // update slider range and overlay
+  const url = `./scenarios/scenario_${scenarioId}/manifest.json`;
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load manifest: ${url} -> ${res.status} ${res.statusText}`);
+
+  manifest = await res.json();
+
+  if (!map) {
+    initMap(manifest.aoi.bbox_lonlat);
+    map.on("load", () => {
       timeSlider.max = manifest.time.n_frames - 1;
       timeSlider.value = 0;
       scenarioInfo.textContent = JSON.stringify(manifest.parameters, null, 0);
-
-      // refit bounds
-      map.fitBounds(
-        [[manifest.aoi.bbox_lonlat[0], manifest.aoi.bbox_lonlat[1]],
-         [manifest.aoi.bbox_lonlat[2], manifest.aoi.bbox_lonlat[3]]],
-        { padding: 20 }
-      );
       updateUIFrame();
-    }
+    });
+  } else {
+    timeSlider.max = manifest.time.n_frames - 1;
+    timeSlider.value = 0;
+    scenarioInfo.textContent = JSON.stringify(manifest.parameters, null, 0);
+
+    map.fitBounds(
+      [[manifest.aoi.bbox_lonlat[0], manifest.aoi.bbox_lonlat[1]],
+       [manifest.aoi.bbox_lonlat[2], manifest.aoi.bbox_lonlat[3]]],
+      { padding: 20 }
+    );
+    updateUIFrame();
   }
+}
 
   // Events
   scenarioSelect.addEventListener("change", async () => {
