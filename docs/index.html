@@ -186,7 +186,7 @@
 
   async function loadScenario(newScenarioId) {
     scenarioId = newScenarioId;
-    const res = await fetch("./scenarios/scenario_${scenarioId}/manifest.json");
+    const res = await fetch(`./scenarios/scenario_${scenarioId}/manifest.json`);
     manifest = await res.json();
 
     // init map once
