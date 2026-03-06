@@ -1,0 +1,53 @@
+{
+  "crs": "EPSG:32735",
+  "transform": [
+    250.0,
+    0.0,
+    644250.0,
+    0.0,
+    -250.0,
+    9856500.0,
+    0.0,
+    0.0,
+    1.0
+  ],
+  "shape": [
+    730,
+    687
+  ],
+  "dx_m": 250.0,
+  "dy_m": 250.0,
+  "paths": {
+    "dem": "C:\\Users\\nachi\\Data\\GitHubProjects\\Lake Kivu\\kivu_limnic_scenarios\\notebooks\\data\\processed\\dem_aligned.tif",
+    "pop": "C:\\Users\\nachi\\Data\\GitHubProjects\\Lake Kivu\\kivu_limnic_scenarios\\notebooks\\data\\processed\\pop_aligned.tif",
+    "grid_template": "C:\\Users\\nachi\\Data\\GitHubProjects\\Lake Kivu\\kivu_limnic_scenarios\\notebooks\\data\\processed\\grid_template.tif",
+    "u_slope": "C:\\Users\\nachi\\Data\\GitHubProjects\\Lake Kivu\\kivu_limnic_scenarios\\notebooks\\data\\processed\\u_slope.tif",
+    "v_slope": "C:\\Users\\nachi\\Data\\GitHubProjects\\Lake Kivu\\kivu_limnic_scenarios\\notebooks\\data\\processed\\v_slope.tif",
+    "grad_mag": "C:\\Users\\nachi\\Data\\GitHubProjects\\Lake Kivu\\kivu_limnic_scenarios\\notebooks\\data\\processed\\grad_mag.tif",
+    "mask_lake": "C:\\Users\\nachi\\Data\\GitHubProjects\\Lake Kivu\\kivu_limnic_scenarios\\notebooks\\data\\processed\\mask_lake.tif",
+    "mask_water": "C:\\Users\\nachi\\Data\\GitHubProjects\\Lake Kivu\\kivu_limnic_scenarios\\notebooks\\data\\processed\\mask_water.tif",
+    "mask_land": "C:\\Users\\nachi\\Data\\GitHubProjects\\Lake Kivu\\kivu_limnic_scenarios\\notebooks\\data\\processed\\mask_land.tif",
+    "source_point": "C:\\Users\\nachi\\Data\\GitHubProjects\\Lake Kivu\\kivu_limnic_scenarios\\notebooks\\data\\processed\\source_point.geojson",
+    "source_index": "C:\\Users\\nachi\\Data\\GitHubProjects\\Lake Kivu\\kivu_limnic_scenarios\\notebooks\\data\\processed\\source_index.json",
+    "gadm_aoi_utm": "C:\\Users\\nachi\\Data\\GitHubProjects\\Lake Kivu\\kivu_limnic_scenarios\\notebooks\\data\\processed\\gadm_aoi_utm.geojson"
+  },
+  "source": {
+    "centroid_utm_xy": [
+      734122.0525505297,
+      9777309.857395217
+    ],
+    "centroid_wgs84_lonlat": [
+      29.104811184180704,
+      -2.0133718964223135
+    ],
+    "source_rowcol": [
+      316,
+      361
+    ]
+  },
+  "params": {
+    "slope_strength_alpha": 30.0,
+    "slope_vmax_mps": 1.0,
+    "apply_smoothing": false
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "duration_h": 72,
+  "dt_report_h": 1,
+  "dt_internal_s": 120,
+  "released_volume_STP_m3": 2000000000.0,
+  "release_duration_h": 6,
+  "release_profile": "top_hat",
+  "source_spread_radius_m": 1500,
+  "wind_speed_mps": 2.0,
+  "wind_dir_deg_from": 90.0,
+  "eddy_diffusivity_m2ps": 8.0,
+  "loss_rate_1ps": 2e-05,
+  "H_mix_m": 50.0,
+  "slope_speed_mode": "tanh",
+  "slope_tanh_beta": 1.0,
+  "slope_vmax_mps": 1.0
+}

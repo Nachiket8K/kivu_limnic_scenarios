@@ -1,0 +1,7 @@
+{
+  "run_dir": "C:\\Users\\nachi\\Data\\GitHubProjects\\Lake Kivu\\kivu_limnic_scenarios\\notebooks\\runs\\single_run_paper_spec",
+  "max_expected_fatalities": 14474.5869140625,
+  "max_pop_lethal": 14449.7255859375,
+  "max_area_lethal_km2": 109.625,
+  "Ri_source": 11056.98739150709
+}

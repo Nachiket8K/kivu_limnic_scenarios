@@ -51,6 +51,28 @@ coverage.xml
 .pytest_cache/
 cover/
 
+################################################################################
+# Caches anywhere (project-wide)
+################################################################################
+**/__pycache__/
+**/.cache/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.ipynb_checkpoints/
+**/.tox/
+**/.nox/
+**/.dmypy.json
+**/.hypothesis/
+
+# Common “cache” directory/file naming patterns across tools
+**/*cache*/
+**/*Cache*/
+**/*.cache
+**/*.cache.*
+**/*.tmp
+**/*.temp
+
 # Translations
 *.mo
 *.pot

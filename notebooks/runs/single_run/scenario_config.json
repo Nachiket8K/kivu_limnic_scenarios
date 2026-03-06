@@ -1,0 +1,23 @@
+{
+  "duration_h": 72,
+  "dt_report_h": 1,
+  "dt_internal_s": 120,
+  "co2_inventory_upper_m3_stp": 300000000000.0,
+  "release_fraction": 1.0,
+  "eruption_radius_m": 3000,
+  "constrain_disk_to_lake": true,
+  "release_duration_h": 2,
+  "wind_speed_mps": 2.0,
+  "wind_dir_deg_from": 90.0,
+  "slope_speed_mode": "tanh",
+  "slope_tanh_beta": 0.6,
+  "slope_vmax_mps": 1.0,
+  "K_base_m2ps": 2.0,
+  "K_top_m2ps": 20.0,
+  "entrain_rate_1ps": 2e-05,
+  "entrain_wind_gain": 1.0,
+  "strip_coeff_1pm": 0.0002,
+  "base_background_loss_1ps": 2e-06,
+  "H_mix_m": 50.0,
+  "released_volume_STP_m3": 300000000000.0
+}
