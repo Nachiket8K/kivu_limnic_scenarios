@@ -168,7 +168,7 @@
   }
 
   async function loadIndex() {
-    const res = await fetch("./scenarios/index.json");
+    const res = await fetch(`./scenarios/index.json`);
     indexData = await res.json();
 
     // Populate scenario dropdown from available scenarios
