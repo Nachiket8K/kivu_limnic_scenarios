@@ -1,0 +1,266 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Kivu Scenario Player</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- MapLibre -->
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+
+  <style>
+    html, body { height: 100%; margin: 0; }
+    #app { display: grid; grid-template-columns: 360px 1fr; height: 100%; }
+    #sidebar { padding: 12px; border-right: 1px solid #ddd; font-family: system-ui, sans-serif; overflow: auto; }
+    #map { height: 100%; }
+    .row { margin-bottom: 10px; }
+    label { display: block; font-size: 12px; opacity: 0.8; margin-bottom: 4px; }
+    select, input[type="range"], button { width: 100%; }
+    .inline { display: flex; gap: 8px; }
+    .inline > * { flex: 1; }
+    small { opacity: 0.75; }
+  </style>
+</head>
+
+<body>
+<div id="app">
+  <div id="sidebar">
+    <h3 style="margin: 0 0 10px 0;">Kivu Scenario Player</h3>
+
+    <div class="row">
+      <label>Scenario</label>
+      <select id="scenarioSelect"></select>
+      <small id="scenarioInfo"></small>
+    </div>
+
+    <div class="row">
+      <label>Layer</label>
+      <select id="layerSelect">
+        <option value="ppm_z">ppm_z</option>
+        <option value="lethal_mask">lethal_mask</option>
+        <option value="pdeath">pdeath</option>
+        <option value="base_h">base_h</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <label>Opacity</label>
+      <input id="opacity" type="range" min="0" max="1" step="0.05" value="0.7" />
+      <small id="opacityLabel">0.70</small>
+    </div>
+
+    <div class="row">
+      <label>Time (frame)</label>
+      <input id="timeSlider" type="range" min="0" max="0" step="1" value="0" />
+      <small id="timeLabel">t=0</small>
+    </div>
+
+    <div class="row inline">
+      <button id="playBtn">Play</button>
+      <button id="pauseBtn">Pause</button>
+    </div>
+
+    <div class="row">
+      <label>Speed</label>
+      <select id="speedSelect">
+        <option value="250">Fast</option>
+        <option value="500" selected>Normal</option>
+        <option value="1000">Slow</option>
+      </select>
+    </div>
+
+    <hr />
+    <small>
+      Data served from <code>/scenarios/</code>. This is a playback UI; no physics runs in the browser.
+    </small>
+  </div>
+
+  <div id="map"></div>
+</div>
+
+<script>
+  let map;
+  let indexData;
+  let manifest;
+  let scenarioId;
+  let currentLayer = "ppm_z";
+  let timer = null;
+
+  const scenarioSelect = document.getElementById("scenarioSelect");
+  const layerSelect = document.getElementById("layerSelect");
+  const timeSlider = document.getElementById("timeSlider");
+  const timeLabel = document.getElementById("timeLabel");
+  const scenarioInfo = document.getElementById("scenarioInfo");
+  const opacity = document.getElementById("opacity");
+  const opacityLabel = document.getElementById("opacityLabel");
+  const speedSelect = document.getElementById("speedSelect");
+
+  function framePath(layer, frameIdx) {
+    const f = String(frameIdx).padStart(4, "0");
+    return `./scenarios/scenario_${scenarioId}/frames/${layer}/t${f}.png`;
+  }
+
+  function initMap(boundsLonLat) {
+    // boundsLonLat: [minLon, minLat, maxLon, maxLat]
+    const center = [(boundsLonLat[0] + boundsLonLat[2]) / 2, (boundsLonLat[1] + boundsLonLat[3]) / 2];
+
+    map = new maplibregl.Map({
+      container: "map",
+      style: {
+        version: 8,
+        sources: {
+          "osm": {
+            type: "raster",
+            tiles: [
+              "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+            ],
+            tileSize: 256,
+            attribution: "© OpenStreetMap contributors"
+          }
+        },
+        layers: [{ id: "osm", type: "raster", source: "osm" }]
+      },
+      center,
+      zoom: 9,
+      maxBounds: [[boundsLonLat[0], boundsLonLat[1]], [boundsLonLat[2], boundsLonLat[3]]]
+    });
+
+    map.addControl(new maplibregl.NavigationControl(), "top-right");
+  }
+
+  function setOverlay(frameIdx) {
+    const corners = manifest.aoi.corners_lonlat; // [tl, tr, br, bl]
+    const url = framePath(currentLayer, frameIdx);
+
+    const srcId = "scenarioOverlay";
+    const layerId = "scenarioOverlayLayer";
+
+    const imgCoords = [
+      corners[0], // top-left
+      corners[1], // top-right
+      corners[2], // bottom-right
+      corners[3]  // bottom-left
+    ];
+
+    if (!map.getSource(srcId)) {
+      map.addSource(srcId, {
+        type: "image",
+        url,
+        coordinates: imgCoords
+      });
+      map.addLayer({
+        id: layerId,
+        type: "raster",
+        source: srcId,
+        paint: { "raster-opacity": parseFloat(opacity.value) }
+      });
+    } else {
+      map.getSource(srcId).updateImage({ url, coordinates: imgCoords });
+    }
+  }
+
+  function updateUIFrame() {
+    const frameIdx = parseInt(timeSlider.value, 10);
+    const tMin = manifest.time.timestamps_min[frameIdx];
+    timeLabel.textContent = `frame=${frameIdx}  |  t=${tMin} min`;
+    setOverlay(frameIdx);
+  }
+
+  async function loadIndex() {
+    const res = await fetch("./scenarios/index.json");
+    indexData = await res.json();
+
+    // Populate scenario dropdown from available scenarios
+    scenarioSelect.innerHTML = "";
+    indexData.scenarios.forEach(s => {
+      const opt = document.createElement("option");
+      opt.value = s.scenario_id;
+      opt.textContent = `scenario_${s.scenario_id}`;
+      scenarioSelect.appendChild(opt);
+    });
+
+    // Pick first scenario
+    scenarioId = scenarioSelect.value;
+  }
+
+  async function loadScenario(newScenarioId) {
+    scenarioId = newScenarioId;
+    const res = await fetch("./scenarios/scenario_${scenarioId}/manifest.json");
+    manifest = await res.json();
+
+    // init map once
+    if (!map) {
+      initMap(manifest.aoi.bbox_lonlat);
+      map.on("load", () => {
+        timeSlider.max = manifest.time.n_frames - 1;
+        timeSlider.value = 0;
+        scenarioInfo.textContent = JSON.stringify(manifest.parameters, null, 0);
+        updateUIFrame();
+      });
+    } else {
+      // update slider range and overlay
+      timeSlider.max = manifest.time.n_frames - 1;
+      timeSlider.value = 0;
+      scenarioInfo.textContent = JSON.stringify(manifest.parameters, null, 0);
+
+      // refit bounds
+      map.fitBounds(
+        [[manifest.aoi.bbox_lonlat[0], manifest.aoi.bbox_lonlat[1]],
+         [manifest.aoi.bbox_lonlat[2], manifest.aoi.bbox_lonlat[3]]],
+        { padding: 20 }
+      );
+      updateUIFrame();
+    }
+  }
+
+  // Events
+  scenarioSelect.addEventListener("change", async () => {
+    stop();
+    await loadScenario(scenarioSelect.value);
+  });
+
+  layerSelect.addEventListener("change", () => {
+    currentLayer = layerSelect.value;
+    updateUIFrame();
+  });
+
+  timeSlider.addEventListener("input", updateUIFrame);
+
+  opacity.addEventListener("input", () => {
+    opacityLabel.textContent = parseFloat(opacity.value).toFixed(2);
+    if (map && map.getLayer("scenarioOverlayLayer")) {
+      map.setPaintProperty("scenarioOverlayLayer", "raster-opacity", parseFloat(opacity.value));
+    }
+  });
+
+  function play() {
+    stop();
+    const interval = parseInt(speedSelect.value, 10);
+    timer = setInterval(() => {
+      let v = parseInt(timeSlider.value, 10);
+      v = (v + 1) > parseInt(timeSlider.max, 10) ? 0 : (v + 1);
+      timeSlider.value = v;
+      updateUIFrame();
+    }, interval);
+  }
+
+  function stop() {
+    if (timer) {
+      clearInterval(timer);
+      timer = null;
+    }
+  }
+
+  document.getElementById("playBtn").addEventListener("click", play);
+  document.getElementById("pauseBtn").addEventListener("click", stop);
+
+  // Boot
+  (async function main() {
+    await loadIndex();
+    await loadScenario(scenarioId);
+  })();
+</script>
+
+</body>
+</html>

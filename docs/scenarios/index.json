@@ -1,0 +1,57 @@
+{
+  "scenarios": [
+    {
+      "scenario_id": "f34006b4",
+      "path": "scenario_f34006b4/manifest.json",
+      "parameters": {
+        "release_fraction": 0.01,
+        "eruption_radius_m": 3000.0,
+        "wind_speed_mps": 2.0,
+        "wind_dir_deg_from": 90.0,
+        "duration_h": 24.0,
+        "dt_report_min": 5,
+        "released_volume_STP_m3": 3000000000.0
+      }
+    },
+    {
+      "scenario_id": "a80c8317",
+      "path": "scenario_a80c8317/manifest.json",
+      "parameters": {
+        "release_fraction": 0.1,
+        "eruption_radius_m": 3000.0,
+        "wind_speed_mps": 0.0,
+        "wind_dir_deg_from": 0.0,
+        "duration_h": 24.0,
+        "dt_report_min": 5,
+        "released_volume_STP_m3": 30000000000.0
+      }
+    }
+  ],
+  "options": {
+    "release_fraction": [
+      0.01,
+      0.1
+    ],
+    "eruption_radius_m": [
+      3000.0
+    ],
+    "wind_speed_mps": [
+      0.0,
+      2.0
+    ],
+    "wind_dir_deg_from": [
+      0.0,
+      90.0
+    ],
+    "duration_h": [
+      24.0
+    ],
+    "dt_report_min": [
+      5
+    ],
+    "released_volume_STP_m3": [
+      3000000000.0,
+      30000000000.0
+    ]
+  }
+}

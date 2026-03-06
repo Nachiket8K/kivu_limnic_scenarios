@@ -1,0 +1,1 @@
+Place your population raster as data/raw/population.tif

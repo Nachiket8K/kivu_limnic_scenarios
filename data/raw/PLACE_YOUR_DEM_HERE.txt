@@ -1,0 +1,1 @@
+Place your DEM GeoTIFF as data/raw/dem.tif
