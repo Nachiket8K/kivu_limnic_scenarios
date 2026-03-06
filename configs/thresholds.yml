@@ -1,0 +1,3 @@
+thresholds_ppm:
+  danger: 50000
+  lethal: 100000

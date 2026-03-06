@@ -1,0 +1,19 @@
+grid:
+  cell_size_m: 500
+  crs: "EPSG:32735"   # Example only. Set correctly in preprocessing.
+time:
+  duration_h: 24
+  dt_internal_s: 60
+  dt_report_h: 3
+
+dispersion:
+  eddy_diffusivity_m2ps: 5.0
+  loss_rate_1ps: 0.00005
+  slope_strength: 30.0
+  slope_vmax_mps: 1.0
+
+data:
+  dem: "data/processed/dem_aligned.tif"
+  pop: "data/processed/pop_aligned.tif"
+  lake_outline: "data/raw/lake_outline.geojson"
+  settlements: "data/raw/settlements.geojson"

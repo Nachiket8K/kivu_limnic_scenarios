@@ -1,0 +1,11 @@
+uncertainties:
+  released_mass_kg: [1.0e9, 5.0e11]
+  release_duration_h: [0.25, 24]
+  wind_speed_mps: [0.0, 8.0]
+  wind_dir_deg: [0, 360]
+  eddy_diffusivity_m2ps: [1.0, 50.0]
+  loss_rate_1ps: [1.0e-6, 5.0e-4]
+  slope_strength: [5.0, 80.0]
+  slope_vmax_mps: [0.2, 2.0]
+  source_type: ["point", "polygon"]
+  release_profile: ["pulse", "top_hat", "exp_decay"]
