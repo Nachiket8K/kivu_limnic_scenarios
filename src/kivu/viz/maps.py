@@ -1,0 +1,1 @@
+"""Map plotting helpers (placeholder)."""
