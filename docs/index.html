@@ -26,7 +26,7 @@
 <body>
 <div id="app">
   <div id="sidebar">
-    <h3 style="margin: 0 0 10px 0;">Kivu Scenario Player</h3>
+    <h3 style="margin: 0 0 10px 0;">Scenario Discovery For Limnic Eruptions</h3>
 
     <div class="row">
       <label>Scenario</label>
@@ -72,7 +72,7 @@
 
     <hr />
     <small>
-      Data served from <code>/scenarios/</code> folder in the Github repository. This is a playback UI that shows generated simulation runs; no physics runs in the browser.
+      Data served from <code>/scenarios/</code> folder in the Github repository. 
     </small>
   </div>
 
@@ -84,7 +84,7 @@
   let indexData;
   let manifest;
   let scenarioId;
-  let currentLayer = "ppm_z";
+  let currentLayer = "base_h";
   let timer = null;
 
   const scenarioSelect = document.getElementById("scenarioSelect");
