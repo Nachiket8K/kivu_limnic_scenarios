@@ -289,13 +289,9 @@
   function renderProps(params) {
     const pretty = [
       ["release_fraction", params.release_fraction],
-      ["released_volume_STP_m3", params.released_volume_STP_m3],
       ["wind_speed_mps", params.wind_speed_mps],
       ["wind_dir_deg_from", params.wind_dir_deg_from],
-      ["eruption_radius_m", params.eruption_radius_m],
-      ["dt_report_min", manifest?.time?.dt_report_min],
-      ["n_frames", manifest?.time?.n_frames],
-    ];
+      ];
 
     propsEl.innerHTML = pretty
       .filter(([k,v]) => v !== undefined && v !== null)
