@@ -11,22 +11,66 @@
 
   <style>
     html, body { height: 100%; margin: 0; }
-    #app { display: grid; grid-template-columns: 360px 1fr; height: 100%; }
-    #sidebar { padding: 12px; border-right: 1px solid #ddd; font-family: system-ui, sans-serif; overflow: auto; }
+
+    /* Layout */
+    #app {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      height: 100%;
+      transition: grid-template-columns 0.2s ease;
+    }
+    #app.collapsed { grid-template-columns: 0 1fr; }
+
+    #sidebar {
+      padding: 12px;
+      border-right: 1px solid #ddd;
+      font-family: system-ui, sans-serif;
+      overflow: auto;
+      background: #fff;
+    }
+    #app.collapsed #sidebar {
+      padding: 0;
+      border-right: none;
+      overflow: hidden;
+    }
+
     #map { height: 100%; }
+
     .row { margin-bottom: 10px; }
     label { display: block; font-size: 12px; opacity: 0.8; margin-bottom: 4px; }
     select, input[type="range"], button { width: 100%; }
     .inline { display: flex; gap: 8px; }
     .inline > * { flex: 1; }
     small { opacity: 0.75; }
+
+    /* Floating button visible when panel is collapsed */
+    #floatingToggle {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 10;
+      display: none;
+      padding: 8px 10px;
+      border: 1px solid #ddd;
+      background: #fff;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: system-ui, sans-serif;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    }
+    #app.collapsed + #floatingToggle { display: block; }
   </style>
 </head>
 
 <body>
+
 <div id="app">
   <div id="sidebar">
     <h3 style="margin: 0 0 10px 0;">Scenario Discovery For Limnic Eruptions</h3>
+
+    <div class="row">
+      <button id="toggleSidebar">Hide panel</button>
+    </div>
 
     <div class="row">
       <label>Scenario</label>
@@ -35,12 +79,17 @@
     </div>
 
     <div class="row">
+      <label>Scenario properties</label>
+      <div id="props" style="font-size:12px; line-height:1.45;"></div>
+    </div>
+
+    <div class="row">
       <label>Layer</label>
       <select id="layerSelect">
+        <option value="base_h">base_h</option>
         <option value="ppm_z">ppm_z</option>
         <option value="lethal_mask">lethal_mask</option>
         <option value="pdeath">pdeath</option>
-        <option value="base_h">base_h</option>
       </select>
     </div>
 
@@ -72,12 +121,14 @@
 
     <hr />
     <small>
-      Data served from <code>/scenarios/</code> folder in the Github repository. 
+      Data served from <code>./scenarios/</code> folder in the GitHub Pages site.
     </small>
   </div>
 
   <div id="map"></div>
 </div>
+
+<button id="floatingToggle">Show panel</button>
 
 <script>
   let map;
@@ -87,22 +138,93 @@
   let currentLayer = "base_h";
   let timer = null;
 
+  const appEl = document.getElementById("app");
+  const toggleBtn = document.getElementById("toggleSidebar");
+  const floatingToggle = document.getElementById("floatingToggle");
+
   const scenarioSelect = document.getElementById("scenarioSelect");
   const layerSelect = document.getElementById("layerSelect");
   const timeSlider = document.getElementById("timeSlider");
   const timeLabel = document.getElementById("timeLabel");
   const scenarioInfo = document.getElementById("scenarioInfo");
+  const propsEl = document.getElementById("props");
   const opacity = document.getElementById("opacity");
   const opacityLabel = document.getElementById("opacityLabel");
   const speedSelect = document.getElementById("speedSelect");
 
+  // ---- Sidebar collapse ----
+  function setCollapsed(collapsed) {
+    if (collapsed) {
+      appEl.classList.add("collapsed");
+      toggleBtn.textContent = "Show panel";
+      floatingToggle.style.display = "block";
+    } else {
+      appEl.classList.remove("collapsed");
+      toggleBtn.textContent = "Hide panel";
+      floatingToggle.style.display = "none";
+    }
+    if (map) setTimeout(() => map.resize(), 220);
+  }
+
+  toggleBtn.addEventListener("click", () => {
+    setCollapsed(!appEl.classList.contains("collapsed"));
+  });
+
+  floatingToggle.addEventListener("click", () => {
+    setCollapsed(false);
+  });
+
+  // ---- Paths ----
   function framePath(layer, frameIdx) {
     const f = String(frameIdx).padStart(4, "0");
-    return `./scenarios/scenario_${scenarioId}/frames/${layer}/t${f}.png`;
+    const v = (manifest && manifest.created_utc) ? encodeURIComponent(manifest.created_utc) : Date.now();
+    return `./scenarios/scenario_${scenarioId}/frames/${layer}/t${f}.png?v=${v}`;
+  }
+
+  // ---- White -> transparent (chroma key) ----
+  // Assumes pure white background (#FFFFFF). Converts to alpha=0 client-side.
+  const chromaCache = new Map(); // url -> dataURL
+
+  async function fetchImageAsTransparentDataURL(url) {
+    if (chromaCache.has(url)) return chromaCache.get(url);
+
+    const img = new Image();
+    img.decoding = "async";
+    img.crossOrigin = "anonymous";
+
+    const dataURL = await new Promise((resolve, reject) => {
+      img.onload = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext("2d", { willReadFrequently: true });
+          ctx.drawImage(img, 0, 0);
+
+          const im = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const d = im.data;
+
+          for (let i = 0; i < d.length; i += 4) {
+            if (d[i] === 255 && d[i+1] === 255 && d[i+2] === 255) {
+              d[i+3] = 0;
+            }
+          }
+
+          ctx.putImageData(im, 0, 0);
+          resolve(canvas.toDataURL("image/png"));
+        } catch (e) {
+          reject(e);
+        }
+      };
+      img.onerror = () => reject(new Error("Failed to load image: " + url));
+      img.src = url;
+    });
+
+    chromaCache.set(url, dataURL);
+    return dataURL;
   }
 
   function initMap(boundsLonLat) {
-    // boundsLonLat: [minLon, minLat, maxLon, maxLat]
     const center = [(boundsLonLat[0] + boundsLonLat[2]) / 2, (boundsLonLat[1] + boundsLonLat[3]) / 2];
 
     map = new maplibregl.Map({
@@ -112,9 +234,7 @@
         sources: {
           "osm": {
             type: "raster",
-            tiles: [
-              "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-            ],
+            tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
             tileSize: 256,
             attribution: "© OpenStreetMap contributors"
           }
@@ -129,9 +249,9 @@
     map.addControl(new maplibregl.NavigationControl(), "top-right");
   }
 
-  function setOverlay(frameIdx) {
+  async function setOverlay(frameIdx) {
     const corners = manifest.aoi.corners_lonlat; // [tl, tr, br, bl]
-    const url = framePath(currentLayer, frameIdx);
+    const rawUrl = framePath(currentLayer, frameIdx);
 
     const srcId = "scenarioOverlay";
     const layerId = "scenarioOverlayLayer";
@@ -143,12 +263,10 @@
       corners[3]  // bottom-left
     ];
 
+    const url = await fetchImageAsTransparentDataURL(rawUrl);
+
     if (!map.getSource(srcId)) {
-      map.addSource(srcId, {
-        type: "image",
-        url,
-        coordinates: imgCoords
-      });
+      map.addSource(srcId, { type: "image", url, coordinates: imgCoords });
       map.addLayer({
         id: layerId,
         type: "raster",
@@ -160,19 +278,36 @@
     }
   }
 
-  function updateUIFrame() {
+  async function updateUIFrame() {
+    if (!manifest) return;
     const frameIdx = parseInt(timeSlider.value, 10);
     const tMin = manifest.time.timestamps_min[frameIdx];
     timeLabel.textContent = `frame=${frameIdx}  |  t=${tMin} min`;
-    setOverlay(frameIdx);
+    await setOverlay(frameIdx);
+  }
+
+  function renderProps(params) {
+    const pretty = [
+      ["release_fraction", params.release_fraction],
+      ["released_volume_STP_m3", params.released_volume_STP_m3],
+      ["wind_speed_mps", params.wind_speed_mps],
+      ["wind_dir_deg_from", params.wind_dir_deg_from],
+      ["eruption_radius_m", params.eruption_radius_m],
+      ["dt_report_min", manifest?.time?.dt_report_min],
+      ["n_frames", manifest?.time?.n_frames],
+    ];
+
+    propsEl.innerHTML = pretty
+      .filter(([k,v]) => v !== undefined && v !== null)
+      .map(([k,v]) => `<div><b>${k}</b>: ${v}</div>`)
+      .join("");
   }
 
   async function loadIndex() {
-    const res = await fetch(`./scenarios/index.json`);
+    const res = await fetch(`./scenarios/index.json`, { cache: "no-store" });
     if (!res.ok) throw new Error(`Failed to load index.json: ${res.status} ${res.statusText}`);
     indexData = await res.json();
 
-    // Populate scenario dropdown from available scenarios
     scenarioSelect.innerHTML = "";
     indexData.scenarios.forEach(s => {
       const opt = document.createElement("option");
@@ -181,53 +316,59 @@
       scenarioSelect.appendChild(opt);
     });
 
-    // Pick first scenario
     scenarioId = scenarioSelect.value;
   }
 
   async function loadScenario(newScenarioId) {
-  scenarioId = newScenarioId;
+    stop();
+    scenarioId = newScenarioId;
+    chromaCache.clear();
 
-  const url = `./scenarios/scenario_${scenarioId}/manifest.json`;
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) throw new Error(`Failed to load manifest: ${url} -> ${res.status} ${res.statusText}`);
+    const url = `./scenarios/scenario_${scenarioId}/manifest.json`;
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error(`Failed to load manifest: ${url} -> ${res.status} ${res.statusText}`);
+    manifest = await res.json();
 
-  manifest = await res.json();
+    scenarioInfo.textContent =
+      `release_fraction=${manifest.parameters.release_fraction}, wind=${manifest.parameters.wind_speed_mps}m/s @ ${manifest.parameters.wind_dir_deg_from}°`;
 
-  if (!map) {
-    initMap(manifest.aoi.bbox_lonlat);
-    map.on("load", () => {
+    renderProps(manifest.parameters || {});
+
+    if (!map) {
+      initMap(manifest.aoi.bbox_lonlat);
+      map.on("load", async () => {
+        timeSlider.max = manifest.time.n_frames - 1;
+        timeSlider.value = 0;
+        opacityLabel.textContent = parseFloat(opacity.value).toFixed(2);
+        await updateUIFrame();
+      });
+    } else {
       timeSlider.max = manifest.time.n_frames - 1;
       timeSlider.value = 0;
-      scenarioInfo.textContent = JSON.stringify(manifest.parameters, null, 0);
-      updateUIFrame();
-    });
-  } else {
-    timeSlider.max = manifest.time.n_frames - 1;
-    timeSlider.value = 0;
-    scenarioInfo.textContent = JSON.stringify(manifest.parameters, null, 0);
 
-    map.fitBounds(
-      [[manifest.aoi.bbox_lonlat[0], manifest.aoi.bbox_lonlat[1]],
-       [manifest.aoi.bbox_lonlat[2], manifest.aoi.bbox_lonlat[3]]],
-      { padding: 20 }
-    );
-    updateUIFrame();
+      map.fitBounds(
+        [[manifest.aoi.bbox_lonlat[0], manifest.aoi.bbox_lonlat[1]],
+         [manifest.aoi.bbox_lonlat[2], manifest.aoi.bbox_lonlat[3]]],
+        { padding: 20 }
+      );
+
+      await updateUIFrame();
+    }
   }
-}
 
   // Events
   scenarioSelect.addEventListener("change", async () => {
-    stop();
     await loadScenario(scenarioSelect.value);
   });
 
-  layerSelect.addEventListener("change", () => {
+  layerSelect.addEventListener("change", async () => {
     currentLayer = layerSelect.value;
-    updateUIFrame();
+    await updateUIFrame();
   });
 
-  timeSlider.addEventListener("input", updateUIFrame);
+  timeSlider.addEventListener("input", () => {
+    updateUIFrame();
+  });
 
   opacity.addEventListener("input", () => {
     opacityLabel.textContent = parseFloat(opacity.value).toFixed(2);
@@ -259,8 +400,14 @@
 
   // Boot
   (async function main() {
-    await loadIndex();
-    await loadScenario(scenarioId);
+    try {
+      await loadIndex();
+      await loadScenario(scenarioId);
+      setCollapsed(false);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to load scenarios. Open DevTools Console/Network for details.\n\n" + e);
+    }
   })();
 </script>
 
