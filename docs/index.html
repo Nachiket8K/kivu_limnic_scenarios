@@ -59,6 +59,13 @@
       box-shadow: 0 2px 10px rgba(0,0,0,0.08);
     }
     #app.collapsed + #floatingToggle { display: block; }
+
+    /* Impact box styling */
+    #impact {
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    #impact .muted { opacity: 0.8; }
   </style>
 </head>
 
@@ -81,6 +88,11 @@
     <div class="row">
       <label>Scenario properties</label>
       <div id="props" style="font-size:12px; line-height:1.45;"></div>
+    </div>
+
+    <div class="row">
+      <label>Impact metrics (current timestep)</label>
+      <div id="impact"></div>
     </div>
 
     <div class="row">
@@ -138,6 +150,10 @@
   let currentLayer = "base_h";
   let timer = null;
 
+  // Metrics
+  let metrics = null;
+  let metricsByFrame = null;
+
   const appEl = document.getElementById("app");
   const toggleBtn = document.getElementById("toggleSidebar");
   const floatingToggle = document.getElementById("floatingToggle");
@@ -148,6 +164,7 @@
   const timeLabel = document.getElementById("timeLabel");
   const scenarioInfo = document.getElementById("scenarioInfo");
   const propsEl = document.getElementById("props");
+  const impactEl = document.getElementById("impact");
   const opacity = document.getElementById("opacity");
   const opacityLabel = document.getElementById("opacityLabel");
   const speedSelect = document.getElementById("speedSelect");
@@ -174,6 +191,16 @@
     setCollapsed(false);
   });
 
+  // ---- Formatting helpers ----
+  function fmtInt(x) {
+    if (x === undefined || x === null || !Number.isFinite(x)) return "—";
+    return Math.round(x).toLocaleString();
+  }
+  function fmt2(x) {
+    if (x === undefined || x === null || !Number.isFinite(x)) return "—";
+    return x.toFixed(2);
+  }
+
   // ---- Paths ----
   function framePath(layer, frameIdx) {
     const f = String(frameIdx).padStart(4, "0");
@@ -182,7 +209,6 @@
   }
 
   // ---- White -> transparent (chroma key) ----
-  // Assumes pure white background (#FFFFFF). Converts to alpha=0 client-side.
   const chromaCache = new Map(); // url -> dataURL
 
   async function fetchImageAsTransparentDataURL(url) {
@@ -222,6 +248,53 @@
 
     chromaCache.set(url, dataURL);
     return dataURL;
+  }
+
+  // ---- CSV metrics loading ----
+  async function loadMetricsForScenario() {
+    const url = `./scenarios/scenario_${scenarioId}/metrics_10min.csv`;
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error(`Failed to load metrics CSV: ${url} -> ${res.status} ${res.statusText}`);
+    const text = await res.text();
+
+    const lines = text.trim().split(/\r?\n/);
+    if (lines.length < 2) {
+      metrics = [];
+      metricsByFrame = [];
+      return;
+    }
+
+    const headers = lines[0].split(",").map(h => h.trim());
+    metrics = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(",");
+      const row = {};
+      for (let j = 0; j < headers.length; j++) {
+        const key = headers[j];
+        const val = cols[j];
+        const num = Number(val);
+        row[key] = Number.isFinite(num) ? num : val;
+      }
+      metrics.push(row);
+    }
+    metricsByFrame = metrics;
+  }
+
+  function renderImpact(frameIdx) {
+    if (!metricsByFrame || !metricsByFrame[frameIdx]) {
+      impactEl.innerHTML = `<div><b>People in lethal zone</b>: —</div><div><b>Lethal area (km²)</b>: —</div>`;
+      return;
+    }
+    const row = metricsByFrame[frameIdx];
+    const popLethal = row.pop_lethal;
+    const areaLethal = row.area_lethal_km2;
+    const expectedFatal = row.expected_fatalities;
+
+    impactEl.innerHTML = [
+      `<div><b>People in lethal zone</b> (pop_lethal): ${fmtInt(popLethal)}</div>`,
+      `<div><b>Lethal area</b> (km²): ${fmt2(areaLethal)}</div>`,
+      (expectedFatal !== undefined) ? `<div class="muted"><b>Expected deaths</b> (expected_fatalities): ${fmtInt(expectedFatal)}</div>` : ``
+    ].join("");
   }
 
   function initMap(boundsLonLat) {
@@ -283,6 +356,8 @@
     const frameIdx = parseInt(timeSlider.value, 10);
     const tMin = manifest.time.timestamps_min[frameIdx];
     timeLabel.textContent = `frame=${frameIdx}  |  t=${tMin} min`;
+
+    renderImpact(frameIdx);
     await setOverlay(frameIdx);
   }
 
@@ -319,11 +394,15 @@
     stop();
     scenarioId = newScenarioId;
     chromaCache.clear();
+    metrics = null;
+    metricsByFrame = null;
 
     const url = `./scenarios/scenario_${scenarioId}/manifest.json`;
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) throw new Error(`Failed to load manifest: ${url} -> ${res.status} ${res.statusText}`);
     manifest = await res.json();
+
+    await loadMetricsForScenario();
 
     scenarioInfo.textContent =
       `release_fraction=${manifest.parameters.release_fraction}, wind=${manifest.parameters.wind_speed_mps}m/s @ ${manifest.parameters.wind_dir_deg_from}°`;
@@ -336,6 +415,7 @@
         timeSlider.max = manifest.time.n_frames - 1;
         timeSlider.value = 0;
         opacityLabel.textContent = parseFloat(opacity.value).toFixed(2);
+        renderImpact(0);
         await updateUIFrame();
       });
     } else {
@@ -348,6 +428,7 @@
         { padding: 20 }
       );
 
+      renderImpact(0);
       await updateUIFrame();
     }
   }
