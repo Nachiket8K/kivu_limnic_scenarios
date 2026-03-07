@@ -550,7 +550,7 @@ def run_single_scenario(static: Dict[str, Any], scenario_in: Dict[str, Any], out
     scenario.setdefault("exposure_substep_min", 3)
 
     scenario.setdefault("co2_inventory_upper_m3_stp", 3.0e11)
-    scenario.setdefault("release_fraction", 0.1)
+    scenario.setdefault("release_fraction", 1)
     scenario.setdefault("eruption_radius_m", 3000.0)
     scenario.setdefault("constrain_disk_to_lake", True)
 
