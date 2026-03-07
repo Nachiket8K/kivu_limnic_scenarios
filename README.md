@@ -114,8 +114,6 @@ That makes it feasible to:
 - select scenarios from dropdowns (parameter-driven)  
 - compare impact metrics quickly without recomputing PDEs  
 
-## Safety note
-This is a research/educational hazard exploration tool. It is not an operational early-warning system and should not be used for real-time emergency decisions.
 
 ## References (key)
 - Folch, A., Barcons, J., Kozono, T., & Costa, A. (2017). *High-resolution modelling of atmospheric dispersion of dense gas using TWODEE‑2.1: application to the 1986 Lake Nyos limnic eruption.* **Natural Hazards and Earth System Sciences**, 17, 861–879.  
