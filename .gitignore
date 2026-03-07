@@ -64,6 +64,7 @@ cover/
 **/.nox/
 **/.dmypy.json
 **/.hypothesis/
+**/data/*
 
 # Common “cache” directory/file naming patterns across tools
 **/*cache*/
