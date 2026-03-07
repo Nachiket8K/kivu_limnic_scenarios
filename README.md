@@ -34,10 +34,10 @@ This code focuses on **CO₂ release and atmospheric/near-ground dispersion**, p
 
 The physics are implemented as a **two-layer approximation**:
 
-1) **Dense base layer (“TWODEE-like”)**  
+1) **Dense base layer (TWODEE)**  
    A shallow-layer, terrain-following dense gas flow that “settles” and spreads along topography (valley-seeking behavior).
 
-2) **Wind-advected top layer (“DISGAS-like”)**  
+2) **Wind-advected top layer (DISGAS)**  
    A more dilute component that is transported primarily by wind and turbulent diffusion, with coupling/decay terms.
 
 This is intentionally built for **rapid what-if exploration**, not as a full CFD/LES solver.
@@ -50,7 +50,7 @@ This is intentionally built for **rapid what-if exploration**, not as a full CFD
 
 ## Academic foundations for the math
 
-Your implementation is a pragmatic “scenario discovery” approximation, but it is explicitly inspired by established dense-gas dispersion modeling approaches:
+This implementation is a pragmatic “scenario discovery” approximation, but it is explicitly inspired by established dense-gas dispersion modeling approaches:
 
 ### Dense-gas, terrain-following flow: TWODEE
 - **Folch et al. (2017)** present high-resolution dense gas dispersion modelling using **TWODEE-2.1**, with application to the **1986 Lake Nyos** disaster. This paper is the conceptual anchor for treating dense gas as a terrain-following shallow layer.
