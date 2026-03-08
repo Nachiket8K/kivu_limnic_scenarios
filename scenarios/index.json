@@ -51,6 +51,19 @@
         "dt_report_min": 5,
         "released_volume_STP_m3": 300000000000.0
       }
+    },
+    {
+      "scenario_id": "42fece1e",
+      "path": "scenario_42fece1e/manifest.json",
+      "parameters": {
+        "release_fraction": 0.75,
+        "eruption_radius_m": 3000.0,
+        "wind_speed_mps": 0.0,
+        "wind_dir_deg_from": 0.0,
+        "duration_h": 24.0,
+        "dt_report_min": 5,
+        "released_volume_STP_m3": 225000000000.0
+      }
     }
   ],
   "options": {
@@ -58,6 +71,7 @@
       0.01,
       0.1,
       0.5,
+      0.75,
       1
     ],
     "eruption_radius_m": [
@@ -81,6 +95,7 @@
       3000000000.0,
       30000000000.0,
       150000000000.0,
+      225000000000.0,
       300000000000.0
     ]
   }
