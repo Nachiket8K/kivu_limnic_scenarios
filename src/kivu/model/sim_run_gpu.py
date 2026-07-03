@@ -48,6 +48,13 @@ except Exception as e:
         f"Import error: {e!r}"
     )
 
+try:
+    from numba import cuda
+    CUDA_AVAILABLE = cuda.is_available()
+except Exception:
+    cuda = None
+    CUDA_AVAILABLE = False
+
 
 # -----------------------------
 # Utilities
@@ -59,6 +66,17 @@ def load_json(path: Path) -> Dict[str, Any]:
 
 def ensure_dir(p: Path) -> None:
     p.mkdir(parents=True, exist_ok=True)
+
+
+def resolve_processed_path(path_str: str, processed_dir: Path) -> Path:
+    path = Path(path_str)
+    if path.exists():
+        return path
+    fallback = processed_dir / path.name
+    if fallback.exists():
+        print(f"Resolved missing path {path} -> {fallback}")
+        return fallback
+    return path
 
 
 def stable_hash(obj: Dict[str, Any], n: int = 8) -> str:
@@ -90,6 +108,14 @@ def close_datasets(dss: Iterable[rasterio.io.DatasetReader]) -> None:
             ds.close()
         except Exception:
             pass
+
+
+def get_backend_name(requested_backend: str) -> str:
+    if requested_backend == "gpu":
+        if not CUDA_AVAILABLE:
+            raise RuntimeError("GPU backend requested but numba.cuda is not available on this machine.")
+        return "gpu"
+    return "cpu"
 
 
 # -----------------------------
@@ -180,6 +206,91 @@ def _advect_upwind_scalar(F, u_wind, v_wind, dt, dx, dy, out):
             else:
                 dFdy = (F[i_dn, j] - F[i, j]) * invdy
             out[i, j] = F[i, j] - dt * (u_wind * dFdx + v_wind * dFdy)
+
+
+if cuda is not None:
+    @cuda.jit
+    def _advect_upwind_scalar_cuda(F, u_wind, v_wind, dt, dx, dy, out):
+        i, j = cuda.grid(2)
+        H, W = F.shape
+        if i >= H or j >= W:
+            return
+        i_up = i - 1 if i > 0 else 0
+        i_dn = i + 1 if i < H - 1 else H - 1
+        j_lt = j - 1 if j > 0 else 0
+        j_rt = j + 1 if j < W - 1 else W - 1
+        invdx = 1.0 / dx
+        invdy = 1.0 / dy
+        if u_wind >= 0.0:
+            dFdx = (F[i, j] - F[i, j_lt]) * invdx
+        else:
+            dFdx = (F[i, j_rt] - F[i, j]) * invdx
+        if v_wind >= 0.0:
+            dFdy = (F[i, j] - F[i_up, j]) * invdy
+        else:
+            dFdy = (F[i_dn, j] - F[i, j]) * invdy
+        out[i, j] = F[i, j] - dt * (u_wind * dFdx + v_wind * dFdy)
+
+
+    @cuda.jit
+    def _diffuse_laplacian_cuda(F, K, dt, dx, dy, out):
+        i, j = cuda.grid(2)
+        H, W = F.shape
+        if i >= H or j >= W:
+            return
+        if K <= 0.0:
+            out[i, j] = F[i, j]
+            return
+        i_up = i - 1 if i > 0 else 0
+        i_dn = i + 1 if i < H - 1 else H - 1
+        j_lt = j - 1 if j > 0 else 0
+        j_rt = j + 1 if j < W - 1 else W - 1
+        idx2 = 1.0 / (dx * dx)
+        idy2 = 1.0 / (dy * dy)
+        lap = (F[i, j_lt] - 2.0 * F[i, j] + F[i, j_rt]) * idx2 + (F[i_up, j] - 2.0 * F[i, j] + F[i_dn, j]) * idy2
+        out[i, j] = F[i, j] + (K * dt) * lap
+
+
+    @cuda.jit
+    def _clip_nonnegative_cuda(F):
+        i, j = cuda.grid(2)
+        H, W = F.shape
+        if i < H and j < W and F[i, j] < 0.0:
+            F[i, j] = 0.0
+
+
+def _gpu_launch_config(shape: Tuple[int, int]) -> Tuple[Tuple[int, int], Tuple[int, int]]:
+    threads = (16, 16)
+    blocks = (
+        (shape[0] + threads[0] - 1) // threads[0],
+        (shape[1] + threads[1] - 1) // threads[1],
+    )
+    return blocks, threads
+
+
+def evolve_top_layer_gpu(
+    M_top: np.ndarray,
+    u_wind: float,
+    v_wind: float,
+    dt: float,
+    dx: float,
+    dy: float,
+    K_top: float,
+    strip_rate: float,
+) -> np.ndarray:
+    if not CUDA_AVAILABLE:
+        raise RuntimeError("GPU evolution requested but CUDA is unavailable.")
+    blocks, threads = _gpu_launch_config(M_top.shape)
+    d_top = cuda.to_device(M_top.astype("float32"))
+    d_tmp = cuda.device_array_like(d_top)
+    _advect_upwind_scalar_cuda[blocks, threads](d_top, u_wind, v_wind, dt, dx, dy, d_tmp)
+    _diffuse_laplacian_cuda[blocks, threads](d_tmp, K_top, dt, dx, dy, d_top)
+    if strip_rate > 0:
+        decay = float(np.exp(-strip_rate * dt))
+        d_top = d_top * decay
+    _clip_nonnegative_cuda[blocks, threads](d_top)
+    cuda.synchronize()
+    return d_top.copy_to_host().astype("float32")
 
 
 @njit(fastmath=True, parallel=True)
@@ -524,15 +635,17 @@ def disk_mask(H: int, W: int, center_r: int, center_c: int, radius_m: float, dx:
 # -----------------------------
 # Scenario runner
 # -----------------------------
-def run_single_scenario(static: Dict[str, Any], scenario_in: Dict[str, Any], out_root: Path, save_geotiff: bool, save_frames: bool) -> Path:
+def run_single_scenario(static: Dict[str, Any], scenario_in: Dict[str, Any], out_root: Path, save_geotiff: bool, save_frames: bool, backend: str = "cpu") -> Path:
     paths = static["paths"]
-    dem_ds, dem = load_raster(Path(paths["dem"]))
-    pop_ds, pop = load_raster(Path(paths["pop"]))
-    mask_lake_ds, mask_lake = load_raster(Path(paths["mask_lake"]))
-    grid_ds, _ = load_raster(Path(paths["grid_template"]))
+    processed_dir = (Path(".").resolve() / "data" / "processed")
+    dem_ds, dem = load_raster(resolve_processed_path(paths["dem"], processed_dir))
+    pop_ds, pop = load_raster(resolve_processed_path(paths["pop"], processed_dir))
+    mask_lake_ds, mask_lake = load_raster(resolve_processed_path(paths["mask_lake"], processed_dir))
+    grid_ds, _ = load_raster(resolve_processed_path(paths["grid_template"], processed_dir))
     print("Rasters loaded.")
 
-    source_idx = json.loads(Path(paths["source_index"]).read_text(encoding="utf-8"))
+    source_index_path = resolve_processed_path(paths["source_index"], processed_dir)
+    source_idx = json.loads(source_index_path.read_text(encoding="utf-8"))
     src_r, src_c = int(source_idx["row"]), int(source_idx["col"])
 
     H, W = dem.shape
@@ -543,6 +656,7 @@ def run_single_scenario(static: Dict[str, Any], scenario_in: Dict[str, Any], out
     dz_dx = dz_dx.astype("float32"); dz_dy = dz_dy.astype("float32")
 
     scenario = dict(scenario_in)
+    backend_name = get_backend_name(backend)
     scenario.setdefault("duration_h", 24.0)
     scenario.setdefault("dt_internal_s", 0.3)
     scenario.setdefault("dt_report_min", 5)
@@ -550,7 +664,7 @@ def run_single_scenario(static: Dict[str, Any], scenario_in: Dict[str, Any], out
     scenario.setdefault("exposure_substep_min", 3)
 
     scenario.setdefault("co2_inventory_upper_m3_stp", 3.0e11)
-    scenario.setdefault("release_fraction", 0.75 )
+    scenario.setdefault("release_fraction", 0.25 )
     scenario.setdefault("eruption_radius_m", 3000.0)
     scenario.setdefault("constrain_disk_to_lake", True)
 
@@ -586,6 +700,7 @@ def run_single_scenario(static: Dict[str, Any], scenario_in: Dict[str, Any], out
     scenario["released_volume_STP_m3"] = float(scenario["co2_inventory_upper_m3_stp"]) * float(scenario["release_fraction"])
 
     print("Running scenario ")
+    print(f"Backend: {backend_name}")
 
     id_basis = {
         "release_fraction": scenario["release_fraction"],
@@ -708,17 +823,29 @@ def run_single_scenario(static: Dict[str, Any], scenario_in: Dict[str, Any], out
             cum_base_loss_kg += float(np.sum(dM_loss) * cell_area)
             _enforce_consistency_inplace(h, mx, my, M_base, rho_co2)
 
-        _advect_upwind_scalar(M_top, u_wind, v_wind, dt, dx, dy, tmp0)
-        M_top = tmp0.copy()
-        _diffuse_laplacian(M_top, float(scenario["K_top_m2ps"]), dt, dx, dy, tmp1)
-        M_top = tmp1.copy()
-        M_top = np.maximum(M_top, 0).astype("float32")
-
         strip_rate = float(scenario["strip_coeff_1ps_per_mps"]) * wind_mag + float(scenario["top_background_loss_1ps"])
+        before = float(np.sum(M_top) * cell_area)
+        if backend_name == "gpu":
+            M_top = evolve_top_layer_gpu(
+                M_top=M_top,
+                u_wind=u_wind,
+                v_wind=v_wind,
+                dt=dt,
+                dx=dx,
+                dy=dy,
+                K_top=float(scenario["K_top_m2ps"]),
+                strip_rate=strip_rate,
+            )
+        else:
+            _advect_upwind_scalar(M_top, u_wind, v_wind, dt, dx, dy, tmp0)
+            M_top = tmp0.copy()
+            _diffuse_laplacian(M_top, float(scenario["K_top_m2ps"]), dt, dx, dy, tmp1)
+            M_top = tmp1.copy()
+            M_top = np.maximum(M_top, 0).astype("float32")
+            if strip_rate > 0:
+                M_top = (M_top * np.exp(-strip_rate * dt)).astype("float32")
+        after = float(np.sum(M_top) * cell_area)
         if strip_rate > 0:
-            before = float(np.sum(M_top) * cell_area)
-            M_top = (M_top * np.exp(-strip_rate * dt)).astype("float32")
-            after = float(np.sum(M_top) * cell_area)
             cum_strip_kg += max(0.0, before - after)
 
         if step % sub_every == 0:
@@ -828,6 +955,7 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--out", type=str, default="scenarios", help="Output root directory (default: scenarios).")
     ap.add_argument("--save-geotiff", action="store_true", help="Write GeoTIFFs at report times (storage-heavy).")
     ap.add_argument("--no-frames", action="store_true", help="Skip PNG frame export.")
+    ap.add_argument("--backend", choices=["cpu", "gpu"], default="cpu", help="Execution backend for supported simulation phases.")
     return ap.parse_args()
 
 
@@ -850,7 +978,7 @@ def main() -> None:
     ensure_dir(out_root)
     print(f"Output root directory: {out_root}")
 
-    scenario_dir = run_single_scenario(static, scenario_in, out_root, bool(args.save_geotiff), not bool(args.no_frames))
+    scenario_dir = run_single_scenario(static, scenario_in, out_root, bool(args.save_geotiff), not bool(args.no_frames), backend=str(args.backend))
 
     print(json.dumps({
         "status": "ok",

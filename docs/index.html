@@ -202,6 +202,17 @@
     return x.toFixed(2);
   }
 
+  function scenarioLabel(params, fallbackId) {
+    if (!params) return `scenario_${fallbackId}`;
+    const rf = params.release_fraction;
+    const ws = params.wind_speed_mps;
+    const wd = params.wind_dir_deg_from;
+    if ([rf, ws, wd].every(v => v !== undefined && v !== null && Number.isFinite(Number(v)))) {
+      return `rf=${Number(rf)} | ws=${Number(ws)} m/s | wd=${Number(wd)} deg`;
+    }
+    return `scenario_${fallbackId}`;
+  }
+
   // ---- Paths ----
   function framePath(layer, frameIdx) {
     const f = String(frameIdx).padStart(4, "0");
@@ -367,6 +378,9 @@
       ["release_fraction", params.release_fraction],
       ["wind_speed_mps", params.wind_speed_mps],
       ["wind_dir_deg_from", params.wind_dir_deg_from],
+      ["released_volume_STP_m3", params.released_volume_STP_m3],
+      ["duration_h", params.duration_h],
+      ["dt_report_min", params.dt_report_min],
       ];
 
     propsEl.innerHTML = pretty
@@ -384,7 +398,8 @@
     indexData.scenarios.forEach(s => {
       const opt = document.createElement("option");
       opt.value = s.scenario_id;
-      opt.textContent = `scenario_${s.scenario_id}`;
+      opt.textContent = scenarioLabel(s.parameters || {}, s.scenario_id);
+      opt.title = `scenario_${s.scenario_id}`;
       scenarioSelect.appendChild(opt);
     });
 
@@ -406,7 +421,7 @@
     await loadMetricsForScenario();
 
     scenarioInfo.textContent =
-      `release_fraction=${manifest.parameters.release_fraction}, wind=${manifest.parameters.wind_speed_mps}m/s @ ${manifest.parameters.wind_dir_deg_from}°`;
+      `${scenarioLabel(manifest.parameters || {}, scenarioId)}  |  scenario_${scenarioId}`;
 
     renderProps(manifest.parameters || {});
 
